@@ -45,7 +45,7 @@
     const bonusImg = new Image();
     bonusImg.src = "u.png";
 
-    // Player (bigger size)
+    // Player
     const player = {
       x: 0,
       y: 0,
@@ -70,22 +70,22 @@
 
     const TARGET_BONUSES = 20;
 
-    // Simple frame counters for spawning
+    // Simple timers (у кадрах)
     let meteorTimer = 0;
     let bonusTimer = 0;
     const METEOR_INTERVAL_FRAMES = 55;
-    const BONUS_INTERVAL_FRAMES = 160;
+    const BONUS_INTERVAL_FRAMES  = 160;
     const MAX_METEORS = 8;
     const MAX_BONUSES = 4;
 
-    // Meteor speed-up (very gentle)
+    // Легка “ускладненість”
     let difficulty = 0;
-    const DIFFICULTY_STEP = 0.0015; // grows slowly
+    const DIFFICULTY_STEP = 0.0015;
 
-    // Explosion flash when bonus collected
+    // Короткий спалах при бонусі
     let flashFrames = 0;
 
-    // Keyboard
+    // Клавіатура
     const keys = new Set();
     window.addEventListener("keydown", (e) => {
       keys.add(e.code);
@@ -94,7 +94,7 @@
     });
     window.addEventListener("keyup", (e) => keys.delete(e.code));
 
-    // Mouse / touch start / restart
+    // Клік мишкою: старт / рестарт
     canvas.addEventListener("click", () => {
       if (!started) started = true;
       else if (gameOver || win) resetGame();
@@ -113,7 +113,7 @@
       const x = Math.random() * (canvas.width - size);
       const y = -size - 20;
       const baseSpeed = 4 + Math.random() * 2;
-      const vy = baseSpeed + difficulty * 8; // speed grows with difficulty
+      const vy = baseSpeed + difficulty * 8;
       meteors.push({ x, y, w: size, h: size, vy });
     }
 
@@ -138,7 +138,7 @@
     function update() {
       if (!started || gameOver || win) return;
 
-      // Player movement
+      // Рух персонажа
       const step = player.speed;
       if (keys.has("ArrowLeft") || keys.has("KeyA")) player.x -= step;
       if (keys.has("ArrowRight") || keys.has("KeyD")) player.x += step;
@@ -146,11 +146,11 @@
       if (keys.has("ArrowDown") || keys.has("KeyS")) player.y += step;
       clampPlayer();
 
-      // Difficulty slowly increases
+      // Поступове ускладнення
       difficulty += DIFFICULTY_STEP;
       if (difficulty > 1) difficulty = 1;
 
-      // Spawn meteors and bonuses
+      // Спавн
       meteorTimer++;
       bonusTimer++;
 
@@ -158,27 +158,21 @@
         meteorTimer = 0;
         spawnMeteor();
       }
-
       if (bonusTimer >= BONUS_INTERVAL_FRAMES) {
         bonusTimer = 0;
         spawnBonus();
       }
 
-      // Move meteors
-      for (const m of meteors) {
-        m.y += m.vy;
-      }
+      // Рух метеоритів
+      for (const m of meteors) m.y += m.vy;
+      // Рух бонусів
+      for (const b of bonuses) b.y += b.vy;
 
-      // Move bonuses
-      for (const b of bonuses) {
-        b.y += b.vy;
-      }
-
-      // Remove off-screen
+      // Видалення поза екраном
       meteors = meteors.filter(m => m.y < canvas.height + 120);
       bonuses = bonuses.filter(b => b.y < canvas.height + 120);
 
-      // Meteor collisions → Game Over
+      // Зіткнення з метеоритом → програш
       for (const m of meteors) {
         if (intersects(player, m)) {
           gameOver = true;
@@ -186,17 +180,15 @@
         }
       }
 
-      // Bonus collisions → add, clear meteors, flash
+      // Збір бонуса → +1, вибух всіх метеоритів
       for (let i = bonuses.length - 1; i >= 0; i--) {
         const b = bonuses[i];
         if (intersects(player, b)) {
           bonuses.splice(i, 1);
           collected++;
           score += 10;
-
-          // Remove all meteors (boom)
-          meteors = [];
-          flashFrames = 10; // short light flash
+          meteors = [];      // очистити всі метеорити
+          flashFrames = 10;  // короткий спалах
 
           if (collected >= TARGET_BONUSES) {
             win = true;
@@ -204,15 +196,13 @@
         }
       }
 
-      if (flashFrames > 0) {
-        flashFrames--;
-      }
+      if (flashFrames > 0) flashFrames--;
     }
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw meteors
+      // Метеорити
       for (const m of meteors) {
         if (meteorImg.complete) {
           ctx.drawImage(meteorImg, m.x, m.y, m.w, m.h);
@@ -222,7 +212,7 @@
         }
       }
 
-      // Draw bonuses
+      // Бонуси
       for (const b of bonuses) {
         if (bonusImg.complete) {
           ctx.drawImage(bonusImg, b.x, b.y, b.w, b.h);
@@ -234,7 +224,7 @@
         }
       }
 
-      // Draw player
+      // Персонаж
       if (playerImg.complete) {
         ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
       } else {
@@ -242,7 +232,7 @@
         ctx.fillRect(player.x, player.y, player.w, player.h);
       }
 
-      // Explosion flash overlay
+      // Спалах від бонуса
       if (flashFrames > 0) {
         const alpha = flashFrames / 10;
         ctx.fillStyle = "rgba(255, 230, 140," + alpha + ")";
@@ -258,7 +248,7 @@
       ctx.fillText("Score: " + score, 20, 60);
       ctx.fillText("Bonuses: " + collected + " / " + TARGET_BONUSES, 20, 85);
 
-      // Start screen
+      // Стартовий екран
       if (!started && !gameOver && !win) {
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -272,7 +262,7 @@
         ctx.textAlign = "left";
       }
 
-      // Game Over
+      // Програш
       if (gameOver) {
         ctx.fillStyle = "rgba(0,0,0,0.75)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -287,7 +277,7 @@
         ctx.textAlign = "left";
       }
 
-      // Win screen — soft glow ✨
+      // Перемога — сяйво
       if (win) {
         const cx = canvas.width / 2;
         const cy = canvas.height / 2;
@@ -333,7 +323,6 @@
       requestAnimationFrame(loop);
     }
 
-    // Initial position before loop
     resetPlayerPosition();
     loop();
   </script>
