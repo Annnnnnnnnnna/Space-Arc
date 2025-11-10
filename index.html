@@ -49,8 +49,8 @@
     const player = {
       x: 0,
       y: 0,
-      w: 130,   // bigger width
-      h: 130,   // bigger height
+      w: 130,  // bigger
+      h: 130,  // bigger
       speed: 7
     };
 
@@ -62,8 +62,6 @@
     // Game state
     let meteors = [];
     let bonuses = [];
-    let explosions = [];
-
     let score = 0;
     let collected = 0;
     let gameOver = false;
@@ -72,19 +70,22 @@
 
     const TARGET_BONUSES = 20;
 
-    // Spawn control
+    // Simple frame-based spawn timers
     let meteorTimer = 0;
     let bonusTimer = 0;
-    const METEOR_INTERVAL_FRAMES = 50;
+    const METEOR_INTERVAL_FRAMES = 55;
     const BONUS_INTERVAL_FRAMES  = 160;
 
     const MAX_METEORS = 10;
     const MAX_BONUSES = 5;
 
-    // Meteor speed-up
-    let meteorSpeedBoost = 0;           // grows with time
-    const METEOR_BOOST_PER_FRAME = 0.003; // how fast they accelerate
-    const METEOR_MAX_SPEED = 14;
+    // Meteor acceleration
+    let meteorSpeedBoost = 0;             // grows over time
+    const METEOR_BOOST_PER_FRAME = 0.002; // very soft
+    const METEOR_MAX_SPEED = 12;
+
+    // Explosion flash (for all meteors)
+    let explosionFlashFrames = 0;
 
     // Keyboard
     const keys = new Set();
@@ -141,44 +142,10 @@
       );
     }
 
-    // Explosion particles
-    function spawnExplosion(x, y, color = "rgba(255, 200, 80, 1)") {
-      for (let i = 0; i < 20; i++) {
-        explosions.push({
-          x,
-          y,
-          vx: (Math.random() - 0.5) * 8,
-          vy: (Math.random() - 0.5) * 8,
-          r: 2 + Math.random() * 4,
-          life: 30 + Math.random() * 20,
-          color
-        });
-      }
-    }
-
-    function updateExplosions() {
-      for (let i = explosions.length - 1; i >= 0; i--) {
-        const p = explosions[i];
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life -= 1;
-        if (p.life <= 0) explosions.splice(i, 1);
-      }
-    }
-
-    function drawExplosions() {
-      for (const p of explosions) {
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
     function update() {
       if (!started || gameOver || win) return;
 
-      // Player movement
+      // Player movement (fixed step)
       const step = player.speed;
       if (keys.has("ArrowLeft") || keys.has("KeyA")) player.x -= step;
       if (keys.has("ArrowRight") || keys.has("KeyD")) player.x += step;
@@ -186,11 +153,11 @@
       if (keys.has("ArrowDown") || keys.has("KeyS")) player.y += step;
       clampPlayer();
 
-      // Increase meteor speed over time
+      // Meteor global speed boost
       meteorSpeedBoost += METEOR_BOOST_PER_FRAME;
-      if (meteorSpeedBoost > 10) meteorSpeedBoost = 10;
+      if (meteorSpeedBoost > 8) meteorSpeedBoost = 8;
 
-      // Spawning
+      // Spawning (by frames)
       meteorTimer++;
       bonusTimer++;
 
@@ -204,9 +171,9 @@
         spawnBonus();
       }
 
-      // Move meteors (speed up slightly too)
+      // Move meteors
       for (const m of meteors) {
-        m.vy = Math.min(METEOR_MAX_SPEED, m.vy + 0.01); // extra small acceleration
+        m.vy = Math.min(METEOR_MAX_SPEED, m.vy + 0.01); // little acceleration
         m.y += m.vy;
       }
 
@@ -227,7 +194,7 @@
         }
       }
 
-      // Bonus collisions → +bonus, explosion, clear meteors
+      // Bonus collisions → +bonus, all meteors explode + clear
       for (let i = bonuses.length - 1; i >= 0; i--) {
         const b = bonuses[i];
         if (intersects(player, b)) {
@@ -235,14 +202,11 @@
           collected++;
           bonuses.splice(i, 1);
 
-          // explosion for each meteor
-          for (const m of meteors) {
-            spawnExplosion(m.x + m.w / 2, m.y + m.h / 2, "rgba(255, 200, 80, 1)");
+          // Trigger flash explosion for all meteors
+          if (meteors.length > 0) {
+            explosionFlashFrames = 12; // short flash
           }
-          meteors = []; // self-destroy all
-
-          // small glow around player
-          spawnExplosion(player.x + player.w / 2, player.y + player.h / 2, "rgba(80, 200, 255, 1)");
+          meteors = []; // remove all meteors
 
           // Win condition
           if (collected >= TARGET_BONUSES) {
@@ -251,7 +215,10 @@
         }
       }
 
-      updateExplosions();
+      // Decrease explosion flash
+      if (explosionFlashFrames > 0) {
+        explosionFlashFrames--;
+      }
     }
 
     function draw() {
@@ -287,12 +254,16 @@
         ctx.fillRect(player.x, player.y, player.w, player.h);
       }
 
-      // Explosions
-      drawExplosions();
+      // Flash explosion overlay
+      if (explosionFlashFrames > 0) {
+        const alpha = explosionFlashFrames / 12;
+        ctx.fillStyle = "rgba(255, 220, 120," + alpha + ")";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
 
       // HUD
       ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(10, 10, 260, 80);
+      ctx.fillRect(10, 10, 280, 80);
       ctx.fillStyle = "#fff";
       ctx.font = "20px Arial";
       ctx.fillText("Space Arc", 20, 35);
@@ -313,7 +284,7 @@
         ctx.textAlign = "left";
       }
 
-      // Game over overlay (lose)
+      // Game over overlay
       if (gameOver) {
         ctx.fillStyle = "rgba(0,0,0,0.75)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -330,15 +301,14 @@
 
       // Win overlay — glow of victory ✨
       if (win) {
-        // glow
-        const cx = player.x + player.w / 2;
-        const cy = player.y + player.h / 2;
-        const maxR = Math.max(canvas.width, canvas.height);
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const maxR = Math.max(canvas.width, canvas.height) * 0.8;
 
-        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 0.8);
-        gradient.addColorStop(0, "rgba(120, 255, 220, 0.9)");
-        gradient.addColorStop(0.4, "rgba(80, 200, 255, 0.6)");
-        gradient.addColorStop(1, "rgba(0, 0, 0, 0.8)");
+        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+        gradient.addColorStop(0, "rgba(160, 255, 230, 0.95)");
+        gradient.addColorStop(0.4, "rgba(90, 210, 255, 0.7)");
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0.9)");
 
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -358,7 +328,6 @@
       resetPlayerPosition();
       meteors = [];
       bonuses = [];
-      explosions = [];
       score = 0;
       collected = 0;
       gameOver = false;
@@ -366,6 +335,7 @@
       meteorSpeedBoost = 0;
       meteorTimer = 0;
       bonusTimer = 0;
+      explosionFlashFrames = 0;
       started = true;
     }
 
