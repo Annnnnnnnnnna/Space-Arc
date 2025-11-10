@@ -49,8 +49,8 @@
     const player = {
       x: 0,
       y: 0,
-      w: 130,  // bigger
-      h: 130,  // bigger
+      w: 130,
+      h: 130,
       speed: 7
     };
 
@@ -64,47 +64,40 @@
     let bonuses = [];
     let score = 0;
     let collected = 0;
-    let gameOver = false;
     let started = false;
+    let gameOver = false;
     let win = false;
 
     const TARGET_BONUSES = 20;
 
-    // Simple frame-based spawn timers
+    // Simple frame counters for spawning
     let meteorTimer = 0;
     let bonusTimer = 0;
     const METEOR_INTERVAL_FRAMES = 55;
-    const BONUS_INTERVAL_FRAMES  = 160;
+    const BONUS_INTERVAL_FRAMES = 160;
+    const MAX_METEORS = 8;
+    const MAX_BONUSES = 4;
 
-    const MAX_METEORS = 10;
-    const MAX_BONUSES = 5;
+    // Meteor speed-up (very gentle)
+    let difficulty = 0;
+    const DIFFICULTY_STEP = 0.0015; // grows slowly
 
-    // Meteor acceleration
-    let meteorSpeedBoost = 0;             // grows over time
-    const METEOR_BOOST_PER_FRAME = 0.002; // very soft
-    const METEOR_MAX_SPEED = 12;
-
-    // Explosion flash (for all meteors)
-    let explosionFlashFrames = 0;
+    // Explosion flash when bonus collected
+    let flashFrames = 0;
 
     // Keyboard
     const keys = new Set();
-
     window.addEventListener("keydown", (e) => {
       keys.add(e.code);
       if (!started && e.code === "Space") started = true;
       if ((gameOver || win) && e.code === "Space") resetGame();
     });
-
     window.addEventListener("keyup", (e) => keys.delete(e.code));
 
-    // Click start / restart
+    // Mouse / touch start / restart
     canvas.addEventListener("click", () => {
-      if (!started) {
-        started = true;
-      } else if (gameOver || win) {
-        resetGame();
-      }
+      if (!started) started = true;
+      else if (gameOver || win) resetGame();
     });
 
     function clampPlayer() {
@@ -119,8 +112,8 @@
       const size = Math.max(60, canvas.width * 0.07);
       const x = Math.random() * (canvas.width - size);
       const y = -size - 20;
-      const baseVy = 4 + Math.random() * 3;
-      const vy = Math.min(METEOR_MAX_SPEED, baseVy + meteorSpeedBoost);
+      const baseSpeed = 4 + Math.random() * 2;
+      const vy = baseSpeed + difficulty * 8; // speed grows with difficulty
       meteors.push({ x, y, w: size, h: size, vy });
     }
 
@@ -145,7 +138,7 @@
     function update() {
       if (!started || gameOver || win) return;
 
-      // Player movement (fixed step)
+      // Player movement
       const step = player.speed;
       if (keys.has("ArrowLeft") || keys.has("KeyA")) player.x -= step;
       if (keys.has("ArrowRight") || keys.has("KeyD")) player.x += step;
@@ -153,11 +146,11 @@
       if (keys.has("ArrowDown") || keys.has("KeyS")) player.y += step;
       clampPlayer();
 
-      // Meteor global speed boost
-      meteorSpeedBoost += METEOR_BOOST_PER_FRAME;
-      if (meteorSpeedBoost > 8) meteorSpeedBoost = 8;
+      // Difficulty slowly increases
+      difficulty += DIFFICULTY_STEP;
+      if (difficulty > 1) difficulty = 1;
 
-      // Spawning (by frames)
+      // Spawn meteors and bonuses
       meteorTimer++;
       bonusTimer++;
 
@@ -173,7 +166,6 @@
 
       // Move meteors
       for (const m of meteors) {
-        m.vy = Math.min(METEOR_MAX_SPEED, m.vy + 0.01); // little acceleration
         m.y += m.vy;
       }
 
@@ -186,7 +178,7 @@
       meteors = meteors.filter(m => m.y < canvas.height + 120);
       bonuses = bonuses.filter(b => b.y < canvas.height + 120);
 
-      // Meteor collisions → lose
+      // Meteor collisions → Game Over
       for (const m of meteors) {
         if (intersects(player, m)) {
           gameOver = true;
@@ -194,37 +186,33 @@
         }
       }
 
-      // Bonus collisions → +bonus, all meteors explode + clear
+      // Bonus collisions → add, clear meteors, flash
       for (let i = bonuses.length - 1; i >= 0; i--) {
         const b = bonuses[i];
         if (intersects(player, b)) {
-          score += 10;
-          collected++;
           bonuses.splice(i, 1);
+          collected++;
+          score += 10;
 
-          // Trigger flash explosion for all meteors
-          if (meteors.length > 0) {
-            explosionFlashFrames = 12; // short flash
-          }
-          meteors = []; // remove all meteors
+          // Remove all meteors (boom)
+          meteors = [];
+          flashFrames = 10; // short light flash
 
-          // Win condition
           if (collected >= TARGET_BONUSES) {
             win = true;
           }
         }
       }
 
-      // Decrease explosion flash
-      if (explosionFlashFrames > 0) {
-        explosionFlashFrames--;
+      if (flashFrames > 0) {
+        flashFrames--;
       }
     }
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Meteors
+      // Draw meteors
       for (const m of meteors) {
         if (meteorImg.complete) {
           ctx.drawImage(meteorImg, m.x, m.y, m.w, m.h);
@@ -234,19 +222,19 @@
         }
       }
 
-      // Bonuses
+      // Draw bonuses
       for (const b of bonuses) {
         if (bonusImg.complete) {
           ctx.drawImage(bonusImg, b.x, b.y, b.w, b.h);
         } else {
           ctx.fillStyle = "gold";
           ctx.beginPath();
-          ctx.arc(b.x + b.w/2, b.y + b.h/2, Math.min(b.w,b.h)/2, 0, Math.PI*2);
+          ctx.arc(b.x + b.w / 2, b.y + b.h / 2, Math.min(b.w, b.h) / 2, 0, Math.PI * 2);
           ctx.fill();
         }
       }
 
-      // Player
+      // Draw player
       if (playerImg.complete) {
         ctx.drawImage(playerImg, player.x, player.y, player.w, player.h);
       } else {
@@ -254,10 +242,10 @@
         ctx.fillRect(player.x, player.y, player.w, player.h);
       }
 
-      // Flash explosion overlay
-      if (explosionFlashFrames > 0) {
-        const alpha = explosionFlashFrames / 12;
-        ctx.fillStyle = "rgba(255, 220, 120," + alpha + ")";
+      // Explosion flash overlay
+      if (flashFrames > 0) {
+        const alpha = flashFrames / 10;
+        ctx.fillStyle = "rgba(255, 230, 140," + alpha + ")";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
@@ -270,7 +258,7 @@
       ctx.fillText("Score: " + score, 20, 60);
       ctx.fillText("Bonuses: " + collected + " / " + TARGET_BONUSES, 20, 85);
 
-      // Start overlay
+      // Start screen
       if (!started && !gameOver && !win) {
         ctx.fillStyle = "rgba(0,0,0,0.6)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -284,7 +272,7 @@
         ctx.textAlign = "left";
       }
 
-      // Game over overlay
+      // Game Over
       if (gameOver) {
         ctx.fillStyle = "rgba(0,0,0,0.75)";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -299,15 +287,15 @@
         ctx.textAlign = "left";
       }
 
-      // Win overlay — glow of victory ✨
+      // Win screen — soft glow ✨
       if (win) {
         const cx = canvas.width / 2;
         const cy = canvas.height / 2;
-        const maxR = Math.max(canvas.width, canvas.height) * 0.8;
+        const r = Math.max(canvas.width, canvas.height) * 0.8;
 
-        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
-        gradient.addColorStop(0, "rgba(160, 255, 230, 0.95)");
-        gradient.addColorStop(0.4, "rgba(90, 210, 255, 0.7)");
+        const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+        gradient.addColorStop(0, "rgba(180, 255, 230, 0.95)");
+        gradient.addColorStop(0.4, "rgba(120, 210, 255, 0.7)");
         gradient.addColorStop(1, "rgba(0, 0, 0, 0.9)");
 
         ctx.fillStyle = gradient;
@@ -330,22 +318,24 @@
       bonuses = [];
       score = 0;
       collected = 0;
-      gameOver = false;
-      win = false;
-      meteorSpeedBoost = 0;
+      difficulty = 0;
       meteorTimer = 0;
       bonusTimer = 0;
-      explosionFlashFrames = 0;
+      flashFrames = 0;
+      gameOver = false;
+      win = false;
       started = true;
     }
 
-    function gameLoop() {
+    function loop() {
       update();
       draw();
-      requestAnimationFrame(gameLoop);
+      requestAnimationFrame(loop);
     }
 
-    gameLoop();
+    // Initial position before loop
+    resetPlayerPosition();
+    loop();
   </script>
 </body>
 </html>
